@@ -34,6 +34,8 @@ resource "aws_s3_bucket" "audit_sample_bucket" {
     Environment = var.environment
     ManagedBy   = "Terraform"
     Compliance  = "AWS-MSP-v7.1"
+    ReleaseId   = "REL-2026-001"
+    AuditStatus = "Audited-Release"
   }
 }
 
