@@ -9,17 +9,7 @@ terraform {
 }
 
 provider "aws" {
-  region                      = var.aws_region
-  access_key                  = "mock_access_key"
-  secret_key                  = "mock_secret_key"
-  skip_credentials_validation = true
-  skip_metadata_api_check     = true
-  skip_requesting_account_id  = true
-  s3_use_path_style           = true
-
-  endpoints {
-    s3 = "http://127.0.0.1:4566"
-  }
+  region = var.aws_region
 }
 
 variable "aws_region" {
@@ -34,24 +24,22 @@ variable "environment" {
   description = "Deployment Environment"
 }
 
-# S3 Bucket representing customer workload asset storage
-resource "aws_s3_bucket" "audit_sample_bucket" {
-  bucket_prefix = "jivox-workload-audit-"
+# Production S3 Bucket for customer workload asset storage
+resource "aws_s3_bucket" "workload_asset_bucket" {
+  bucket_prefix = "jivox-prod-assets-"
 
   tags = {
-    Name        = "Jivox-Audit-Verification-Bucket"
+    Name        = "jivox-prod-asset-storage"
     Customer    = "Jivox"
     Environment = var.environment
     ManagedBy   = "Terraform"
-    Compliance  = "AWS-MSP-v7.1"
-    ReleaseId   = "REL-2026-001"
-    AuditStatus = "Audited-Release"
+    Project     = "Workload-Infrastructure"
   }
 }
 
 # Security best practice: Enable versioning
 resource "aws_s3_bucket_versioning" "bucket_versioning" {
-  bucket = aws_s3_bucket.audit_sample_bucket.id
+  bucket = aws_s3_bucket.workload_asset_bucket.id
   versioning_configuration {
     status = "Enabled"
   }
@@ -59,7 +47,7 @@ resource "aws_s3_bucket_versioning" "bucket_versioning" {
 
 # Security best practice: Server-side encryption
 resource "aws_s3_bucket_server_side_encryption_configuration" "bucket_encryption" {
-  bucket = aws_s3_bucket.audit_sample_bucket.id
+  bucket = aws_s3_bucket.workload_asset_bucket.id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -68,13 +56,22 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "bucket_encryption
   }
 }
 
+# Security best practice: Block all public access
+resource "aws_s3_bucket_public_access_block" "public_access_block" {
+  bucket = aws_s3_bucket.workload_asset_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
 output "bucket_name" {
-  value       = aws_s3_bucket.audit_sample_bucket.id
+  value       = aws_s3_bucket.workload_asset_bucket.id
   description = "Deployed AWS S3 Bucket Name"
 }
 
 output "bucket_arn" {
-  value       = aws_s3_bucket.audit_sample_bucket.arn
+  value       = aws_s3_bucket.workload_asset_bucket.arn
   description = "Deployed AWS S3 Bucket ARN"
 }
-
