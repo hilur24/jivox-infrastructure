@@ -1,0 +1,80 @@
+name: "IaC CI/CD Release Pipeline"
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  # -------------------------------------------------------------
+  # Job 1: Non-Production CI & Staging Validation (Artifact 2)
+  # -------------------------------------------------------------
+  nonprod-validation:
+    name: "Non-Prod CI & Validation"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+
+      - name: Terraform Format Check (Linter)
+        run: terraform fmt -check
+
+      - name: Terraform Init (Staging Non-Prod)
+        run: terraform init -backend=false
+
+      - name: Run Security Static Analysis (tfsec)
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          soft_fail: true
+
+      - name: Staging Pre-Deployment Validation (terraform validate & plan)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          terraform validate
+          terraform plan -no-color
+
+  # -------------------------------------------------------------
+  # Job 2: Production IaC Deployment Execution (Artifacts 3 & 4)
+  # -------------------------------------------------------------
+  production-deploy:
+    name: "Production IaC Deployment"
+    needs: nonprod-validation
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # This environment target triggers the manual approval gate in GitHub Actions!
+    environment: production
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+
+      - name: Terraform Init
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: terraform init
+
+      - name: Terraform Apply (Production Deployment)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: terraform apply -auto-approve
+
