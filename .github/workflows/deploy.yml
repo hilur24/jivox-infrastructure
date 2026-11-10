@@ -55,6 +55,22 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
+
+    # GitHub Actions starts this service container BEFORE any step runs
+    # and makes it available on the job's localhost at port 4566.
+    services:
+      localstack:
+        image: localstack/localstack:3.8.0
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: s3
+        options: >-
+          --health-cmd "curl -f http://localhost:4566/_localstack/health || exit 1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -63,13 +79,6 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.7.5"
-
-      - name: Start Lightweight AWS S3 Service
-        run: |
-          pip install "moto[server]"
-          moto_server s3 -p 4566 -H 127.0.0.1 &
-          sleep 4
-          curl -I http://127.0.0.1:4566/ || true
 
       - name: Terraform Init
         env:
