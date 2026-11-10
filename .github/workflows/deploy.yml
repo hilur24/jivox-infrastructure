@@ -64,18 +64,12 @@ jobs:
         with:
           terraform_version: "1.7.5"
 
-      - name: Start AWS Infrastructure Service Container
+      - name: Start Lightweight AWS S3 Service
         run: |
-          docker run -d --name localstack -p 4566:4566 -e SERVICES=s3 localstack/localstack:latest
-          echo "Waiting for AWS S3 service endpoint at 127.0.0.1:4566..."
-          for i in {1..30}; do
-            if curl -s http://127.0.0.1:4566/_localstack/health | grep -q "s3"; then
-              echo "AWS S3 endpoint is healthy and ready!"
-              break
-            fi
-            echo "Waiting for endpoint ($i/30)..."
-            sleep 2
-          done
+          pip install "moto[server]"
+          moto_server s3 -p 4566 -H 127.0.0.1 &
+          sleep 4
+          curl -I http://127.0.0.1:4566/ || true
 
       - name: Terraform Init
         env:
